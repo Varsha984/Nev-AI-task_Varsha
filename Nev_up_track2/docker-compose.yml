@@ -1,0 +1,45 @@
+# Single-command bootstrap: `docker compose up`.
+# Postgres uses pgvector's pg16 image so the `vector` extension is pre-installed.
+# A named volume keeps memory across `docker compose restart` — required by the deck.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: nevup
+      POSTGRES_USER: nevup
+      POSTGRES_PASSWORD: nevup
+    volumes:
+      - nevup_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nevup -d nevup"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: nevup
+      POSTGRES_USER: nevup
+      POSTGRES_PASSWORD: nevup
+      JWT_SECRET: 97791d4db2aa5f689c3cc39356ce35762f0a73aa70923039d8ef72a2840a1b02
+      # Optional — uncomment to enable real Claude calls. The system works
+      # fully without this; the fallback coach produces real citations and
+      # streams identically.
+      # ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+volumes:
+  nevup_pgdata:
